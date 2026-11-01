@@ -1,0 +1,586 @@
+[
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.127890146000027
+  },
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.43275300999994215
+  },
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.0713412929999322
+  },
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.07536458100003074
+  },
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.0755397240000093
+  },
+  {
+    "server": "go",
+    "client": "go",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.07928512099988438
+  },
+  {
+    "server": "go",
+    "client": "java",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.4376167289992736
+  },
+  {
+    "server": "go",
+    "client": "java",
+    "transport": "quic",
+    "status": "FAIL",
+    "detail": "rc=1 marker='CLIENT_E2E_PASS' tail=\tat io.netty.channel.SingleThreadIoEventLoop.run(SingleThreadIoEventLoop.java:196)\n\tat io.netty.util.concurrent.SingleThreadEventExecutor$5.run(SingleThreadEventExecutor.java:1204)\n\tat io.netty.util.internal.ThreadExecutorMap$2.run(ThreadExecutorMap.java:74)\n\tat io.netty.util.concurrent.FastThreadLocalRunnable.run(FastThreadLocalRunnable.java:30)\n\tat java.base/java.lang.Thread.run(Thread.java:1474)\nCaused by: io.netty.handler.codec.quic.QuicException: QuicTransportError{code=0, name='NO_ERROR'}: QUICHE_ERR_TLS_FAIL\n\tat io.netty.handler.codec.quic.Quiche.convertToException(Quiche.java:933)\n\t... 23 more",
+    "duration": 3.994886647000385
+  },
+  {
+    "server": "go",
+    "client": "java",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6410637980006868
+  },
+  {
+    "server": "go",
+    "client": "java",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6495551210000485
+  },
+  {
+    "server": "go",
+    "client": "java",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.1431348520000029
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 3.125497412000186
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.026951519999784
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.5342583419997027
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6094021890003205
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6121528800003944
+  },
+  {
+    "server": "go",
+    "client": "python",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6499437410002429
+  },
+  {
+    "server": "go",
+    "client": "rust",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.6394688959999257
+  },
+  {
+    "server": "go",
+    "client": "rust",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.6385271799999828
+  },
+  {
+    "server": "go",
+    "client": "cpp",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.971367795000333
+  },
+  {
+    "server": "go",
+    "client": "cpp",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.626848705000157
+  },
+  {
+    "server": "go",
+    "client": "cpp",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.627966383000057
+  },
+  {
+    "server": "go",
+    "client": "cpp",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.620537867999701
+  },
+  {
+    "server": "go",
+    "client": "cpp",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.6701521949999005
+  },
+  {
+    "server": "java",
+    "client": "go",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.6953929580004115
+  },
+  {
+    "server": "java",
+    "client": "go",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.0938048090001757
+  },
+  {
+    "server": "java",
+    "client": "go",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.4583748370005196
+  },
+  {
+    "server": "java",
+    "client": "go",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.5596497010001258
+  },
+  {
+    "server": "java",
+    "client": "go",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.2262867070003267
+  },
+  {
+    "server": "java",
+    "client": "java",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.6264980789992478
+  },
+  {
+    "server": "java",
+    "client": "java",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.8868587599999955
+  },
+  {
+    "server": "java",
+    "client": "java",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.9866670779993001
+  },
+  {
+    "server": "java",
+    "client": "java",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.145760679999512
+  },
+  {
+    "server": "java",
+    "client": "java",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.09157793400027
+  },
+  {
+    "server": "java",
+    "client": "python",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.304829707999488
+  },
+  {
+    "server": "java",
+    "client": "python",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.7744670629999746
+  },
+  {
+    "server": "java",
+    "client": "python",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.0346098589998292
+  },
+  {
+    "server": "java",
+    "client": "python",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.0887307419998251
+  },
+  {
+    "server": "java",
+    "client": "python",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.7508342560004166
+  },
+  {
+    "server": "java",
+    "client": "rust",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.0538121230001707
+  },
+  {
+    "server": "java",
+    "client": "cpp",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 8.217725817999963
+  },
+  {
+    "server": "java",
+    "client": "cpp",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 8.022285753000688
+  },
+  {
+    "server": "java",
+    "client": "cpp",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 8.07682776799993
+  },
+  {
+    "server": "java",
+    "client": "cpp",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 8.716244221000125
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.0686366079999061
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.38606828399952065
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.2938945429996238
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.3122505750006894
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.3224506289998317
+  },
+  {
+    "server": "python",
+    "client": "go",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.3253394129997105
+  },
+  {
+    "server": "python",
+    "client": "java",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.5062894269995013
+  },
+  {
+    "server": "python",
+    "client": "java",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.9965209819993106
+  },
+  {
+    "server": "python",
+    "client": "java",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.8206938339999397
+  },
+  {
+    "server": "python",
+    "client": "java",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.9882095909997588
+  },
+  {
+    "server": "python",
+    "client": "java",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.1392749819997334
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.2616432639997583
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "quic",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.025325731000521
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.7765463340001588
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.8299173049999808
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.8523702150005192
+  },
+  {
+    "server": "python",
+    "client": "python",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.8771345589993871
+  },
+  {
+    "server": "python",
+    "client": "rust",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.8403003579996948
+  },
+  {
+    "server": "python",
+    "client": "rust",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.8642572039998413
+  },
+  {
+    "server": "python",
+    "client": "cpp",
+    "transport": "kcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.8376341620005405
+  },
+  {
+    "server": "python",
+    "client": "cpp",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.838663706000261
+  },
+  {
+    "server": "python",
+    "client": "cpp",
+    "transport": "tls",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.860625455000445
+  },
+  {
+    "server": "python",
+    "client": "cpp",
+    "transport": "ws",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.856360449000022
+  },
+  {
+    "server": "python",
+    "client": "cpp",
+    "transport": "wss",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.864812158999484
+  },
+  {
+    "server": "rust",
+    "client": "go",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 0.8561978409998119
+  },
+  {
+    "server": "rust",
+    "client": "java",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.4206526459993256
+  },
+  {
+    "server": "rust",
+    "client": "python",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 1.290772932999971
+  },
+  {
+    "server": "rust",
+    "client": "rust",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 2.429665976999786
+  },
+  {
+    "server": "rust",
+    "client": "cpp",
+    "transport": "tcp",
+    "status": "PASS",
+    "detail": "",
+    "duration": 7.562691062999875
+  }
+]

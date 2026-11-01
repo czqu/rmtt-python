@@ -1,0 +1,218 @@
+[
+  {
+    "server": "go",
+    "name": "connect+keepalive clamp",
+    "status": "PASS",
+    "observed": "rc=0 server_kp=45"
+  },
+  {
+    "server": "go",
+    "name": "bad protocol version",
+    "status": "PASS",
+    "observed": "type=2 rc=1"
+  },
+  {
+    "server": "go",
+    "name": "bad magic",
+    "status": "PASS",
+    "observed": "closed without reply"
+  },
+  {
+    "server": "go",
+    "name": "PINGREQ->PINGRESP",
+    "status": "PASS",
+    "observed": "type=6"
+  },
+  {
+    "server": "go",
+    "name": "framing violation",
+    "status": "PASS",
+    "observed": "connection closed without DISCONNECT"
+  },
+  {
+    "server": "go",
+    "name": "unknown packet type",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "go",
+    "name": "session takeover",
+    "status": "PASS",
+    "observed": "first connection disconnect=0x02"
+  },
+  {
+    "server": "go",
+    "name": "auth reject",
+    "status": "PASS",
+    "observed": "type=2 rc=3"
+  },
+  {
+    "server": "go",
+    "name": "keepalive timeout",
+    "status": "PASS",
+    "observed": "server_kp=1 disconnect=0x05"
+  },
+  {
+    "server": "java",
+    "name": "connect+keepalive clamp",
+    "status": "PASS",
+    "observed": "rc=0 server_kp=45"
+  },
+  {
+    "server": "java",
+    "name": "bad protocol version",
+    "status": "PASS",
+    "observed": "type=2 rc=1"
+  },
+  {
+    "server": "java",
+    "name": "bad magic",
+    "status": "PASS",
+    "observed": "closed without reply"
+  },
+  {
+    "server": "java",
+    "name": "PINGREQ->PINGRESP",
+    "status": "PASS",
+    "observed": "type=6"
+  },
+  {
+    "server": "java",
+    "name": "framing violation",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "java",
+    "name": "unknown packet type",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "java",
+    "name": "session takeover",
+    "status": "PASS",
+    "observed": "first connection disconnect=0x02"
+  },
+  {
+    "server": "java",
+    "name": "auth reject",
+    "status": "PASS",
+    "observed": "type=2 rc=3"
+  },
+  {
+    "server": "java",
+    "name": "keepalive timeout",
+    "status": "PASS",
+    "observed": "server_kp=1 disconnect=0x05"
+  },
+  {
+    "server": "python",
+    "name": "connect+keepalive clamp",
+    "status": "PASS",
+    "observed": "rc=0 server_kp=45"
+  },
+  {
+    "server": "python",
+    "name": "bad protocol version",
+    "status": "PASS",
+    "observed": "type=2 rc=1"
+  },
+  {
+    "server": "python",
+    "name": "bad magic",
+    "status": "PASS",
+    "observed": "closed without reply"
+  },
+  {
+    "server": "python",
+    "name": "PINGREQ->PINGRESP",
+    "status": "PASS",
+    "observed": "type=6"
+  },
+  {
+    "server": "python",
+    "name": "framing violation",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "python",
+    "name": "unknown packet type",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "python",
+    "name": "session takeover",
+    "status": "PASS",
+    "observed": "first connection disconnect=0x02"
+  },
+  {
+    "server": "python",
+    "name": "auth reject",
+    "status": "PASS",
+    "observed": "type=2 rc=3"
+  },
+  {
+    "server": "python",
+    "name": "keepalive timeout",
+    "status": "PASS",
+    "observed": "server_kp=1 disconnect=0x05"
+  },
+  {
+    "server": "rust",
+    "name": "connect+keepalive clamp",
+    "status": "PASS",
+    "observed": "rc=0 server_kp=45"
+  },
+  {
+    "server": "rust",
+    "name": "bad protocol version",
+    "status": "PASS",
+    "observed": "type=2 rc=1"
+  },
+  {
+    "server": "rust",
+    "name": "bad magic",
+    "status": "PASS",
+    "observed": "closed without reply"
+  },
+  {
+    "server": "rust",
+    "name": "PINGREQ->PINGRESP",
+    "status": "PASS",
+    "observed": "type=6"
+  },
+  {
+    "server": "rust",
+    "name": "framing violation",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "rust",
+    "name": "unknown packet type",
+    "status": "PASS",
+    "observed": "DISCONNECT reason=0x04"
+  },
+  {
+    "server": "rust",
+    "name": "session takeover",
+    "status": "PASS",
+    "observed": "first connection disconnect=0x02"
+  },
+  {
+    "server": "rust",
+    "name": "auth reject",
+    "status": "PASS",
+    "observed": "type=2 rc=3"
+  },
+  {
+    "server": "rust",
+    "name": "keepalive timeout",
+    "status": "PASS",
+    "observed": "server_kp=1 disconnect=0x05"
+  }
+]
