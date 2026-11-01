@@ -42,7 +42,7 @@ def _matrix_section(rows) -> str:
         return "_matrix.json not found_"
     passed = sum(1 for r in rows if r["status"] == "PASS")
     lines = [
-        f"共执行 **{len(rows)}** 个组合，**{passed}** 通过，{len(rows) - passed} 未通过。",
+        f"共执行 {len(rows)} 个组合，{passed} 通过，{len(rows) - passed} 未通过。",
         "",
         "| server | client | transport | 结果 | 耗时 (s) | 说明 |",
         "|---|---|---|---|---|---|",
@@ -128,8 +128,8 @@ def build(results_dir: Path) -> str:
 
 ## 1. 概要
 
-对 rmtt-python 实现的 RMTT 协议客户端 / 服务端进行黑盒验证，覆盖 **5 个客户端实现（Go / Java / Rust / C++ / Python）** 与
-**4 个服务端实现（Go / Java / Rust / Python）** 的全部受支持组合，并叠加协议原语一致性与功能特性测试。
+对 rmtt-python 实现的 RMTT 协议客户端 / 服务端做了黑盒验证，覆盖 5 个客户端实现（Go / Java / Rust / C++ / Python）与
+4 个服务端实现（Go / Java / Rust / Python）的全部受支持组合，另叠加协议原语一致性与功能特性测试。
 
 | 测试层 | 规模 | 结果 |
 |---|---|---|
@@ -159,10 +159,10 @@ def build(results_dir: Path) -> str:
 每个组合启动真实服务端进程 + 真实客户端进程，探针统一执行：
 
 1. CONNECT / CONNACK 握手，断言连接成功并打印 server_kp；
-2. **5 条顺序上行 PUSH**，逐条校验服务端 `echo:<payload>` 回显；
-3. **5 条并发上行 PUSH**（多线程/多协程同时发送），校验 5 条回显全部到达；
-4. **二进制大帧**（默认 256 KiB，按实现上限调整），逐字节校验回显；
-5. **空 payload** 上行并校验回显；
+2. 5 条顺序上行 PUSH，逐条校验服务端 `echo:<payload>` 回显；
+3. 5 条并发上行 PUSH（多线程/多协程同时发送），校验 5 条回显全部到达；
+4. 二进制大帧（默认 256 KiB，按实现上限调整），逐字节校验回显；
+5. 空 payload 上行并校验回显；
 6. 优雅 DISCONNECT 退出。
 
 任意实现（Go/Java/Rust/C++/Python）作为服务端或客户端均使用同一套语义，因此可以定位到“哪一端、哪种传输”不兼容。
@@ -183,8 +183,8 @@ def build(results_dir: Path) -> str:
 
 ### 4.3 功能特性
 
-- **短心跳保活**：服务端策略 `[1,2]s`，客户端空闲 6s，过程中依靠 PINGREQ/PINGRESP 维持在线
-- **认证拒绝**：被拒绝的 credential 必须由客户端拿到 CONNACK 0x03
+- 短心跳保活：服务端策略 `[1,2]s`，客户端空闲 6s，过程中依靠 PINGREQ/PINGRESP 维持在线
+- 认证拒绝：被拒绝的 credential 必须由客户端拿到 CONNACK 0x03
 
 ## 5. 组合矩阵明细
 
@@ -213,7 +213,7 @@ def build(results_dir: Path) -> str:
 
 ## 9. 结论
 
-- rmtt-python 与 Go / Java / Rust / C++ 实现在 **{len(matrix or [])} 个可达组合中 {matrix_pass} 个** 完成双向回环验证{failure_note}{known_note}。
+- rmtt-python 与 Go / Java / Rust / C++ 实现在 {len(matrix or [])} 个可达组合中 {matrix_pass} 个完成双向回环验证{failure_note}{known_note}。
 - 所有服务端（含 Python）在 {len(protocol or [])} 项协议原语检查中 {protocol_pass} 项通过：CONNACK 码、心跳协商、会话抢占、认证拒绝、
   心跳超时回收均正确。
 - 功能特性（短心跳保活、认证拒绝）在 4 个服务端上 {feature_pass}/{len(features or [])} 通过。
