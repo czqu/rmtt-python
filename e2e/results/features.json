@@ -1,0 +1,50 @@
+[
+  {
+    "server": "go",
+    "feature": "short-keepalive stay-alive",
+    "status": "PASS",
+    "observed": "CLIENT_CONNECTED server_kp=2"
+  },
+  {
+    "server": "go",
+    "feature": "auth reject",
+    "status": "PASS",
+    "observed": "CLIENT_REFUSED code=3"
+  },
+  {
+    "server": "java",
+    "feature": "short-keepalive stay-alive",
+    "status": "PASS",
+    "observed": "CLIENT_CONNECTED server_kp=2"
+  },
+  {
+    "server": "java",
+    "feature": "auth reject",
+    "status": "PASS",
+    "observed": "CLIENT_REFUSED code=3"
+  },
+  {
+    "server": "python",
+    "feature": "short-keepalive stay-alive",
+    "status": "PASS",
+    "observed": "CLIENT_CONNECTED server_kp=2"
+  },
+  {
+    "server": "python",
+    "feature": "auth reject",
+    "status": "PASS",
+    "observed": "CLIENT_REFUSED code=3"
+  },
+  {
+    "server": "rust",
+    "feature": "short-keepalive stay-alive",
+    "status": "PASS",
+    "observed": "CLIENT_CONNECTED server_kp=2"
+  },
+  {
+    "server": "rust",
+    "feature": "auth reject",
+    "status": "PASS",
+    "observed": "CLIENT_REFUSED code=3"
+  }
+]
