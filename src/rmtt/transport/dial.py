@@ -120,9 +120,7 @@ async def _dial_quic(
     from aioquic.asyncio.client import connect
     from aioquic.quic.configuration import QuicConfiguration
 
-    configuration = QuicConfiguration(
-        is_client=True, alpn_protocols=alpn or ["rmtt"]
-    )
+    configuration = QuicConfiguration(is_client=True, alpn_protocols=alpn)
     if insecure:
         configuration.verify_mode = ssl.CERT_NONE
     elif ca_file:

@@ -172,7 +172,7 @@ def _client_cmd(
             "--binary-size",
             str(binary_size),
         ]
-        if transport == "quic" and server_language == "java":
+        if transport == "quic" and server_language in ("java", "python"):
             cmd += ["--quic-alpn", "rmtt"]
         return cmd, "CLIENT_E2E_PASS"
     if language == "rust":
