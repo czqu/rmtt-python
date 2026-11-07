@@ -13,6 +13,10 @@ from aioquic.quic.events import ConnectionTerminated, StreamDataReceived
 
 from .base import BufferedTransport
 
+#: ALPN every implementation that negotiates one expects (netty QUIC rejects
+#: the handshake without it); offered by default on dial and listen.
+DEFAULT_QUIC_ALPN = "rmtt"
+
 
 class QuicStreamTransport(BufferedTransport):
     """A single bidirectional QUIC stream exposed as a byte stream."""
@@ -46,6 +50,9 @@ class QuicStreamTransport(BufferedTransport):
         except Exception:
             pass
         self._protocol._rmtt_streams.pop(self._stream_id, None)
+        # Wake any reader blocked in readexactly(): closing a QUIC stream never
+        # produces a local event, so without this the session would hang.
+        self.feed_error(ConnectionError("transport closed"))
         if self._close_hook is not None:
             await self._close_hook()
 

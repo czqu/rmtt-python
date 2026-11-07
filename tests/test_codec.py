@@ -103,3 +103,22 @@ def test_connect_credential_roundtrip_utf8():
     decoded = decoder.next_packet()
     assert decoded.credential == "设备-001"
     assert decoded.keepalive == 15
+
+
+def test_oversized_frame_rejected_on_encode():
+    from rmtt.codec.codec import MAX_REMAINING_LENGTH
+
+    with pytest.raises(ValueError):
+        encode_packet(PushPacket(payload=b"x" * (MAX_REMAINING_LENGTH + 1)))
+
+
+def test_decoder_rejects_oversized_before_body_arrives():
+    from rmtt.codec.codec import MAX_REMAINING_LENGTH
+    from rmtt.codec.packets import _encode_length
+
+    decoder = Decoder()
+    decoder.feed(bytes([0x30]) + _encode_length(MAX_REMAINING_LENGTH + 1))
+    with pytest.raises(ProtocolViolationError):
+        decoder.next_packet()
+    # The declared body must never be buffered.
+    assert decoder.pending <= 5

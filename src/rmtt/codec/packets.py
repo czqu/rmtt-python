@@ -14,6 +14,7 @@ from .constants import (
     CONNECT,
     DISCONNECT,
     MAGIC_NUMBER,
+    MAX_REMAINING_LENGTH,
     PINGREQ,
     PINGRESP,
     PROTOCOL_VERSION,
@@ -53,6 +54,10 @@ def _encode_length(length: int) -> bytes:
 
 
 def _frame(message_type: int, body: bytes) -> bytes:
+    if len(body) > MAX_REMAINING_LENGTH:
+        raise ValueError(
+            f"frame body too large: {len(body)} bytes (limit {MAX_REMAINING_LENGTH})"
+        )
     return bytes([(message_type << 4) & 0xFF]) + _encode_length(len(body)) + body
 
 

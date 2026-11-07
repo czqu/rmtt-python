@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from ..codec.errors import CodecError
 
 from .base import Transport
-from .quic import RmttQuicProtocol
+from .quic import DEFAULT_QUIC_ALPN, RmttQuicProtocol
 from .stream import StreamTransport
 from .ws import DEFAULT_WS_PATH, WS_SUBPROTOCOL, WebSocketTransport
 
@@ -34,7 +34,7 @@ async def dial(
     ws_path: str = DEFAULT_WS_PATH,
     quic_alpn: Optional[list[str]] = None,
     quic_ca_file: Optional[str] = None,
-    quic_insecure: bool = True,
+    quic_insecure: bool = False,
     connect_timeout: float = 30.0,
 ) -> Transport:
     """Open a transport to ``server`` (``scheme://host:port[/path]``)."""
@@ -120,7 +120,11 @@ async def _dial_quic(
     from aioquic.asyncio.client import connect
     from aioquic.quic.configuration import QuicConfiguration
 
-    configuration = QuicConfiguration(is_client=True, alpn_protocols=alpn)
+    # Offer the standard ALPN by default, mirroring the WebSocket dial's
+    # default "rmtt" subprotocol; servers that ignore ALPN are unaffected.
+    configuration = QuicConfiguration(
+        is_client=True, alpn_protocols=alpn or [DEFAULT_QUIC_ALPN]
+    )
     if insecure:
         configuration.verify_mode = ssl.CERT_NONE
     elif ca_file:
@@ -135,7 +139,16 @@ async def _dial_quic(
         create_protocol=RmttQuicProtocol,
         wait_connected=True,
     )
-    protocol = await asyncio.wait_for(manager.__aenter__(), timeout)
+    try:
+        protocol = await asyncio.wait_for(manager.__aenter__(), timeout)
+    except BaseException:
+        # Don't leak a half-open QUIC connection when the handshake fails or
+        # times out; __aexit__ was never entered, so run it manually.
+        try:
+            await manager.__aexit__(None, None, None)
+        except Exception:
+            pass
+        raise
     transport = protocol.open_transport()
 
     async def _close_connection() -> None:

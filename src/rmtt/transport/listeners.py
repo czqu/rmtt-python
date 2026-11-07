@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import http
 import ssl
 from typing import Any, Awaitable, Callable, Optional
 
 from .base import Transport
-from .quic import QuicStreamTransport, RmttQuicProtocol
+from .quic import DEFAULT_QUIC_ALPN, QuicStreamTransport, RmttQuicProtocol
 from .stream import StreamTransport
 from .ws import DEFAULT_WS_PATH, WS_SUBPROTOCOL, WebSocketTransport
 
@@ -123,6 +124,14 @@ class WSListener(Listener):
     async def start(self, on_connection: ConnectionHandler) -> None:
         from websockets.asyncio.server import serve
 
+        path = self.path
+
+        def _check_path(connection: Any, request: Any) -> Any:
+            # Reject wrong paths during the HTTP upgrade, like the Go/Java servers.
+            if request.path != path:
+                return connection.respond(http.HTTPStatus.NOT_FOUND, "unknown path\n")
+            return None
+
         async def _cb(ws: Any) -> None:
             transport = WebSocketTransport(ws)
             transport.start()
@@ -138,6 +147,7 @@ class WSListener(Listener):
             subprotocols=[WS_SUBPROTOCOL],
             ssl=self.ssl_context,
             max_size=None,
+            process_request=_check_path,
         )
         self.port = self._server.sockets[0].getsockname()[1]
 
@@ -149,9 +159,6 @@ class WSListener(Listener):
             except Exception:
                 pass
             self._server = None
-
-
-DEFAULT_QUIC_ALPN = "rmtt"
 
 
 class QUICListener(Listener):

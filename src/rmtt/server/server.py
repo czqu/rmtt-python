@@ -42,6 +42,11 @@ class ServerConnection:
         self.active = True
         self.last_received = asyncio.get_running_loop().time()
         self._write_lock = asyncio.Lock()
+        # Reason reported by the single on_connection_closed notification
+        # (set by kick()/takeover/watchdog before the session tears down).
+        self.closed_reason: Optional[str] = None
+        # Set when the session handler has fully finished (after notification).
+        self.closed_event = asyncio.Event()
 
     async def send(self, packet) -> None:
         async with self._write_lock:
@@ -140,9 +145,11 @@ class AsyncServer:
         if conn is None or not conn.active:
             raise DeviceOfflineError(f"device {device_id} not connected")
         self._connections.pop(device_id, None)
+        conn.closed_reason = f"kicked with reason 0x{reason:02x}"
         await conn.send_disconnect(reason)
         await conn.close()
-        self._notify_closed(device_id, f"kicked with reason 0x{reason:02x}")
+        # on_connection_closed is emitted by the session handler's teardown,
+        # exactly once per session.
 
     # ------------------------------------------------------------- connection
     async def _handle_connection(self, transport: Transport) -> None:
@@ -196,7 +203,14 @@ class AsyncServer:
             previous = self._connections.get(device_id)
             self._connections[device_id] = conn
             if previous is not None and previous is not conn:
-                self._spawn(self._take_over(previous))
+                previous.closed_reason = "session taken over"
+                try:
+                    # Bounded wait: the previous session's closed event fires
+                    # before the new session's established event, so listeners
+                    # never see "established, then closed" for the same device.
+                    await asyncio.wait_for(self._take_over(previous), 5)
+                except Exception:  # noqa: BLE001 - best-effort teardown
+                    pass
 
             self._notify_established(device_id)
             reason = await self._session_loop(conn, server_keepalive)
@@ -210,11 +224,16 @@ class AsyncServer:
             if device_id is not None and conn is not None:
                 if self._connections.get(device_id) is conn:
                     self._connections.pop(device_id, None)
-                self._notify_closed(device_id, reason)
+                self._notify_closed(device_id, conn.closed_reason or reason)
+                conn.closed_event.set()
 
     async def _take_over(self, previous: ServerConnection) -> None:
         await previous.send_disconnect(Disc.SESSION_TAKEN_OVER)
         await previous.close()
+        try:
+            await asyncio.wait_for(previous.closed_event.wait(), 1.0)
+        except asyncio.TimeoutError:
+            pass
 
     async def _session_loop(self, conn: ServerConnection, server_keepalive: int) -> str:
         watchdog: Optional[asyncio.Task] = None
@@ -253,6 +272,7 @@ class AsyncServer:
             while conn.active:
                 await asyncio.sleep(min(max(deadline / 4, 0.1), 1.0))
                 if loop.time() - conn.last_received >= deadline:
+                    conn.closed_reason = "keepalive timeout"
                     await conn.send_disconnect(Disc.KEEPALIVE_TIMEOUT)
                     await conn.close()
                     return
@@ -273,9 +293,8 @@ class AsyncServer:
         if inspect.iscoroutinefunction(handler):
             self._spawn(handler(device_id, payload))
             return
-        asyncio.get_running_loop().run_in_executor(
-            None, _call_sync_handler, handler, device_id, payload
-        )
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, _call_sync_handler, handler, device_id, payload, loop)
 
     def _notify_established(self, device_id: str) -> None:
         listener = self.options.connection_listener
@@ -364,8 +383,17 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-def _call_sync_handler(handler, device_id: str, payload: bytes) -> None:
+def _call_sync_handler(
+    handler, device_id: str, payload: bytes, loop: asyncio.AbstractEventLoop
+) -> None:
     try:
-        handler(device_id, payload)
+        result = handler(device_id, payload)
     except Exception:  # noqa: BLE001 - a handler bug must not kill the link
-        pass
+        return
+    # A non-coroutine-function callable may still return an awaitable
+    # (e.g. an object with ``async __call__``); run it on the event loop.
+    if inspect.isawaitable(result):
+        try:
+            loop.call_soon_threadsafe(asyncio.ensure_future, result)
+        except RuntimeError:  # loop already closed
+            pass

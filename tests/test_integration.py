@@ -81,7 +81,8 @@ async def _make_pair(transport="tcp", policy=None, handler=None, auth=None, hear
         ctx.verify_mode = ssl.CERT_NONE
         client_options.set_tls_context(ctx)
     if transport == "quic":
-        client_options.quic_alpn = ["rmtt"]
+        # No explicit quic_alpn: the dialer must offer the standard "rmtt" ALPN
+        # by default (QUICListener negotiates it), matching the WS subprotocol.
         client_options.quic_insecure = True
     client = AsyncClient(client_options)
     token = await client.connect()
@@ -403,3 +404,204 @@ async def test_push_before_connect_reports_error():
     client = AsyncClient(ClientOptions(auto_reconnect=False))
     token = await client.push("nope")
     assert isinstance(token.error, NotConnectedError)
+
+
+# --------------------------------------------------------------------------
+# Regression tests for lifecycle / protocol-semantics bugs.
+# --------------------------------------------------------------------------
+
+
+async def test_cancellation_propagates_from_connect():
+    client = AsyncClient(ClientOptions(connect_retry=True, connect_retry_interval=60))
+    client.options.add_server("tcp://127.0.0.1:1")  # refused, then long retry sleep
+    task = asyncio.create_task(client.connect())
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert client.state is ConnectionState.DISCONNECTED
+    await client.shutdown()
+
+
+class _AsyncCallable:
+    """Handler object with ``async __call__`` (not a coroutine function)."""
+
+    def __init__(self):
+        self.called = False
+
+    async def __call__(self, *args):
+        self.called = True
+
+
+async def test_async_callable_object_handlers_run():
+    server_handler = _AsyncCallable()
+    server, client, _ = await _make_pair("tcp", handler=server_handler)
+    client_handler = _AsyncCallable()
+    client.add_payload_handler_last(client_handler)
+    try:
+        await client.push("hi")
+        await server.push("dev-1", b"down")
+        assert await _wait_for(lambda: server_handler.called)
+        assert await _wait_for(lambda: client_handler.called)
+    finally:
+        await client.disconnect()
+        await server.close()
+
+
+async def test_kick_notifies_closed_exactly_once():
+    server, client, events = await _make_pair("tcp")
+    try:
+        await server.kick("dev-1", Disc.KICKED_BY_ADMIN)
+        assert await _wait_for(lambda: len(events.closed) >= 1)
+        await asyncio.sleep(0.3)
+        assert len(events.closed) == 1
+        assert "kicked" in events.closed[0][1]
+    finally:
+        await client.disconnect()
+        await server.close()
+
+
+async def test_disconnect_during_connect_aborts_session():
+    options = ServerOptions(port=0)
+    options.listeners = [listeners_mod.StreamListener("127.0.0.1", 0)]
+    server = AsyncServer(options)
+    await server.start()
+
+    async def slow_auth(cred):
+        await asyncio.sleep(0.5)
+        return AuthResult.allow(cred)
+
+    server.options.authenticator = slow_auth
+    client = AsyncClient(ClientOptions(connect_retry=False, auto_reconnect=False))
+    client.options.add_server(f"tcp://127.0.0.1:{server.port}")
+    client.options.set_credential("z1")
+    task = asyncio.create_task(client.connect())
+    await asyncio.sleep(0.1)
+    await client.disconnect()  # aborts the in-flight handshake
+    token = await task
+    assert token.error is not None
+    await asyncio.sleep(0.3)
+    assert not client.is_connected
+    assert not server.is_online("z1")
+    await server.close()
+
+
+async def test_server_keepalive_zero_disables_client_heartbeats():
+    from rmtt.codec import ConnackPacket, ConnectPacket, encode_packet, read_packet
+
+    seen = []
+
+    async def handle(reader, writer):
+        try:
+            assert isinstance(await read_packet(reader), ConnectPacket)
+            writer.write(encode_packet(ConnackPacket(return_code=0, server_keepalive=0)))
+            await writer.drain()
+            while True:
+                seen.append(type(await read_packet(reader)).__name__)
+        except Exception:
+            pass
+        finally:
+            writer.close()
+
+    raw = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = raw.sockets[0].getsockname()[1]
+    client = AsyncClient(
+        ClientOptions(connect_retry=False, auto_reconnect=False, heartbeat=1)
+    )
+    client.options.add_server(f"tcp://127.0.0.1:{port}")
+    client.options.set_credential("k1")
+    token = await client.connect()
+    assert token.error is None
+    assert client.server_keepalive == 0
+    try:
+        await asyncio.sleep(3.0)
+        assert seen == []  # negotiated 0 == disabled: no PINGREQ at all
+        assert client.is_connected  # and no client-side receive timeout
+    finally:
+        await client.shutdown()
+        raw.close()
+        await raw.wait_closed()
+
+
+async def test_ws_listener_rejects_wrong_path():
+    import websockets.asyncio.client as wsclient
+
+    options = ServerOptions(port=0)
+    options.listeners = [listeners_mod.WSListener("127.0.0.1", 0, path="/rmtt")]
+    server = AsyncServer(options)
+    await server.start()
+    try:
+        with pytest.raises(Exception):
+            await wsclient.connect(
+                f"ws://127.0.0.1:{server.port}/wrong-path",
+                subprotocols=["rmtt"],
+                open_timeout=5,
+            )
+    finally:
+        await server.close()
+
+
+async def test_oversized_push_fails_locally_and_link_survives():
+    from rmtt.codec.codec import MAX_REMAINING_LENGTH
+
+    server, client, _ = await _make_pair("tcp")
+    try:
+        token = await client.push(b"x" * (MAX_REMAINING_LENGTH + 1))
+        assert isinstance(token.error, ValueError)
+        assert client.is_connected  # the rejected push must not kill the link
+    finally:
+        await client.disconnect()
+        await server.close()
+
+
+async def test_reconnect_after_keepalive_timeout_backs_off():
+    from rmtt.codec import (
+        ConnackPacket,
+        ConnectPacket,
+        Disc,
+        DisconnectPacket,
+        encode_packet,
+        read_packet,
+    )
+
+    async def handle(reader, writer):
+        try:
+            assert isinstance(await read_packet(reader), ConnectPacket)
+            writer.write(encode_packet(ConnackPacket(return_code=0, server_keepalive=30)))
+            await writer.drain()
+            writer.write(encode_packet(DisconnectPacket(return_code=Disc.KEEPALIVE_TIMEOUT)))
+            await writer.drain()
+        finally:
+            writer.close()
+
+    raw = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = raw.sockets[0].getsockname()[1]
+    attempts = []
+    client_options = ClientOptions(
+        connect_retry=False, auto_reconnect=True, reconnect_base=1.0, heartbeat=30
+    )
+    client_options.add_server(f"tcp://127.0.0.1:{port}")
+    client_options.set_credential("dev-retry")
+    client_options.on_connect_attempt = lambda server: attempts.append(server)
+    client = AsyncClient(client_options)
+    token = await client.connect()
+    assert token.error is None
+    raw.close()
+    await raw.wait_closed()
+    try:
+        await asyncio.sleep(3.0)
+        # With exponential backoff at most a handful of attempts fit in 3 s;
+        # a reason-driven backoff reset on every retry spins thousands.
+        assert len(attempts) <= 6, f"reconnect hot loop: {len(attempts)} attempts"
+    finally:
+        await client.shutdown()
+
+
+def test_sync_push_after_shutdown_reports_error():
+    from rmtt import Client as SyncClient
+
+    client = SyncClient(ClientOptions(connect_retry=False, auto_reconnect=False))
+    client.shutdown()
+    token = client.push("x")
+    assert token.wait(5)
+    assert token.error is not None
