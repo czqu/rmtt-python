@@ -605,3 +605,86 @@ def test_sync_push_after_shutdown_reports_error():
     token = client.push("x")
     assert token.wait(5)
     assert token.error is not None
+
+
+async def test_disconnect_during_retry_backoff_completes_promptly():
+    client = AsyncClient(ClientOptions(connect_retry=True, connect_retry_interval=30))
+    client.options.add_server("tcp://127.0.0.1:1")  # refused -> long backoff sleep
+    client.options.set_credential("z")
+    task = asyncio.create_task(client.connect())
+    await asyncio.sleep(0.1)
+    await client.disconnect()
+    # Must not wait out the 30 s retry interval.
+    token = await asyncio.wait_for(task, 3)
+    assert token.error is not None
+    assert not client.is_connected
+    await client.shutdown()
+
+
+async def test_shutdown_completes_pending_connect_token():
+    options = ServerOptions(port=0)
+    options.listeners = [listeners_mod.StreamListener("127.0.0.1", 0)]
+    server = AsyncServer(options)
+    await server.start()
+
+    async def slow_auth(cred):
+        await asyncio.sleep(3)
+        return AuthResult.allow(cred)
+
+    server.options.authenticator = slow_auth
+    client = AsyncClient(ClientOptions(connect_retry=False, auto_reconnect=False))
+    client.options.add_server(f"tcp://127.0.0.1:{server.port}")
+    client.options.set_credential("s1")
+    task = asyncio.create_task(client.connect())
+    await asyncio.sleep(0.1)
+    await asyncio.wait_for(client.shutdown(), 3)
+    # The in-flight connect token completes instead of dangling forever.
+    token = await asyncio.wait_for(task, 3)
+    assert token.error is not None
+    await server.close()
+
+
+async def test_takeover_events_strictly_paired():
+    events = EchoListener()
+    options = ServerOptions(port=0, connection_listener=events)
+    options.listeners = [_listener_for("tcp", 0)]
+    server = AsyncServer(options)
+    await server.start()
+
+    clients = []
+    for _ in range(3):
+        copts = ClientOptions(connect_retry=False, auto_reconnect=False, heartbeat=30)
+        copts.add_server(f"tcp://127.0.0.1:{server.port}")
+        copts.set_credential("pair")
+        clients.append(AsyncClient(copts))
+    tokens = await asyncio.wait_for(
+        asyncio.gather(*(c.connect() for c in clients)), 15
+    )
+    assert all(t.error is None for t in tokens)
+    await asyncio.sleep(1.0)  # let superseded sessions settle
+    # Every closed event pairs a prior established one; the live winner keeps
+    # the counts exactly one apart, regardless of takeover interleaving.
+    assert len(events.established) - len(events.closed) == 1
+    assert server.online_count == 1
+    for c in clients:
+        await c.shutdown()
+    assert await _wait_for(lambda: len(events.established) == len(events.closed))
+    await server.close()
+
+
+async def test_ws_path_ignores_query_string():
+    import websockets.asyncio.client as wsclient
+
+    options = ServerOptions(port=0)
+    options.listeners = [listeners_mod.WSListener("127.0.0.1", 0, path="/rmtt")]
+    server = AsyncServer(options)
+    await server.start()
+    try:
+        ws = await wsclient.connect(
+            f"ws://127.0.0.1:{server.port}/rmtt?token=abc",
+            subprotocols=["rmtt"],
+            open_timeout=5,
+        )
+        await ws.close()
+    finally:
+        await server.close()

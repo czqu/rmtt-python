@@ -155,6 +155,7 @@ class AsyncServer:
     async def _handle_connection(self, transport: Transport) -> None:
         device_id: Optional[str] = None
         conn: Optional[ServerConnection] = None
+        established = False
         reason = "connection closed"
         try:
             try:
@@ -212,7 +213,11 @@ class AsyncServer:
                 except Exception:  # noqa: BLE001 - best-effort teardown
                     pass
 
-            self._notify_established(device_id)
+            if self._connections.get(device_id) is conn:
+                # Strict event pairing: a session superseded while waiting for
+                # the takeover notifies neither established nor closed.
+                self._notify_established(device_id)
+                established = True
             reason = await self._session_loop(conn, server_keepalive)
         except asyncio.CancelledError:
             reason = "server shutdown"
@@ -224,7 +229,8 @@ class AsyncServer:
             if device_id is not None and conn is not None:
                 if self._connections.get(device_id) is conn:
                     self._connections.pop(device_id, None)
-                self._notify_closed(device_id, conn.closed_reason or reason)
+                if established:
+                    self._notify_closed(device_id, conn.closed_reason or reason)
                 conn.closed_event.set()
 
     async def _take_over(self, previous: ServerConnection) -> None:

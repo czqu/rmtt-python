@@ -127,8 +127,10 @@ class WSListener(Listener):
         path = self.path
 
         def _check_path(connection: Any, request: Any) -> Any:
-            # Reject wrong paths during the HTTP upgrade, like the Go/Java servers.
-            if request.path != path:
+            # Reject wrong paths during the HTTP upgrade, like the Go/Java
+            # servers. The query string is ignored, matching Go's URL.Path
+            # comparison.
+            if request.path.partition("?")[0] != path:
                 return connection.respond(http.HTTPStatus.NOT_FOUND, "unknown path\n")
             return None
 
