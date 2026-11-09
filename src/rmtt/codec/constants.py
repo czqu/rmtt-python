@@ -1,5 +1,8 @@
 """Wire-level constants for the RMTT protocol."""
 
+#: Hard cap on a single frame body (16 MiB), matching the Rust/C++ implementations.
+MAX_REMAINING_LENGTH = 16 * 1024 * 1024
+
 # Control packet types (high nibble of the fixed header).
 CONNECT = 1
 CONNACK = 2

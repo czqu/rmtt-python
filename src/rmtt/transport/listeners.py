@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import http
 import ssl
 from typing import Any, Awaitable, Callable, Optional
 
 from .base import Transport
-from .quic import QuicStreamTransport, RmttQuicProtocol
+from .quic import DEFAULT_QUIC_ALPN, QuicStreamTransport, RmttQuicProtocol
 from .stream import StreamTransport
 from .ws import DEFAULT_WS_PATH, WS_SUBPROTOCOL, WebSocketTransport
 
@@ -123,6 +124,16 @@ class WSListener(Listener):
     async def start(self, on_connection: ConnectionHandler) -> None:
         from websockets.asyncio.server import serve
 
+        path = self.path
+
+        def _check_path(connection: Any, request: Any) -> Any:
+            # Reject wrong paths during the HTTP upgrade, like the Go/Java
+            # servers. The query string is ignored, matching Go's URL.Path
+            # comparison.
+            if request.path.partition("?")[0] != path:
+                return connection.respond(http.HTTPStatus.NOT_FOUND, "unknown path\n")
+            return None
+
         async def _cb(ws: Any) -> None:
             transport = WebSocketTransport(ws)
             transport.start()
@@ -138,6 +149,7 @@ class WSListener(Listener):
             subprotocols=[WS_SUBPROTOCOL],
             ssl=self.ssl_context,
             max_size=None,
+            process_request=_check_path,
         )
         self.port = self._server.sockets[0].getsockname()[1]
 
@@ -149,9 +161,6 @@ class WSListener(Listener):
             except Exception:
                 pass
             self._server = None
-
-
-DEFAULT_QUIC_ALPN = "rmtt"
 
 
 class QUICListener(Listener):
@@ -172,8 +181,9 @@ class QUICListener(Listener):
         self.certfile = certfile
         self.keyfile = keyfile
         # "rmtt" is the ALPN every implementation that negotiates one expects
-        # (netty QUIC rejects the handshake without it); servers that ignore
-        # ALPN (Go, Python's own client) are unaffected.
+        # (netty QUIC rejects the handshake without it). The Python client
+        # dials with "rmtt" first and falls back to no ALPN offer for servers
+        # like rmtt-go that negotiate none.
         self.alpn = alpn or [DEFAULT_QUIC_ALPN]
         self.idle_timeout = idle_timeout
         self._server: Any = None

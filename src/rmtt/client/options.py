@@ -43,7 +43,7 @@ class ClientOptions:
     ws_path: str = DEFAULT_WS_PATH
     quic_alpn: Optional[list[str]] = None
     quic_ca_file: Optional[str] = None
-    quic_insecure: bool = True
+    quic_insecure: bool = False
 
     # Hooks.
     on_connection_lost: Optional[Callable[[BaseException], Awaitable[None] | None]] = None

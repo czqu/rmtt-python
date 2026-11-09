@@ -38,6 +38,10 @@ class Token:
             self._future.exception(timeout)
         except concurrent.futures.TimeoutError:
             return False
+        except asyncio.CancelledError:
+            # The token was completed through cancellation of an awaiter; the
+            # operation itself is finished, so report completion.
+            return True
         return True
 
     def wait_timeout(self, timeout: float) -> bool:
@@ -50,13 +54,18 @@ class Token:
     def error(self) -> Optional[BaseException]:
         if not self._future.done():
             return None
+        if self._future.cancelled():
+            return asyncio.CancelledError()
         return self._future.exception()
 
     def result(self) -> None:
         self._future.result()
 
     def __await__(self):
-        return asyncio.wrap_future(self._future).__await__()
+        # Shield the shared future: cancelling ``await token`` must not cancel
+        # the underlying operation, whose outcome is still reported via
+        # ``wait()`` / ``error``.
+        return asyncio.shield(asyncio.wrap_future(self._future)).__await__()
 
     def __repr__(self) -> str:
         state = "done" if self._future.done() else "pending"

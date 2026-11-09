@@ -20,6 +20,11 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - name: Install
+        # aiokcp 0.0.4 vendors KCP C sources that trip GCC 14's default
+        # -Werror=incompatible-pointer-types; demote that diagnostic so the
+        # wheel builds (upstream has no prebuilt wheels).
+        env:
+          CFLAGS: "-Wno-error=incompatible-pointer-types"
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
@@ -42,6 +47,11 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install
+        # aiokcp 0.0.4 vendors KCP C sources that trip GCC 14's default
+        # -Werror=incompatible-pointer-types; demote that diagnostic so the
+        # wheel builds (upstream has no prebuilt wheels).
+        env:
+          CFLAGS: "-Wno-error=incompatible-pointer-types"
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
@@ -81,6 +91,8 @@ jobs:
       - name: System packages
         run: sudo apt-get update && sudo apt-get install -y libssl-dev
       - name: Install rmtt-python
+        env:
+          CFLAGS: "-Wno-error=incompatible-pointer-types"
         run: |
           python -m pip install --upgrade pip
           pip install -e .

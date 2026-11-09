@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from typing import Optional, Protocol, Tuple
 
-from .constants import CONNACK, CONNECT, DISCONNECT, PINGREQ, PINGRESP, PUSH
+from .constants import (
+    CONNACK,
+    CONNECT,
+    DISCONNECT,
+    MAX_REMAINING_LENGTH,
+    PINGREQ,
+    PINGRESP,
+    PUSH,
+)
 from .errors import ProtocolViolationError, UnknownPacketTypeError
 from .packets import (
     ConnackPacket,
@@ -16,8 +24,9 @@ from .packets import (
     PushPacket,
 )
 
-#: Hard cap on a single frame body (16 MiB), matching the Rust/C++ implementations.
-MAX_REMAINING_LENGTH = 16 * 1024 * 1024
+# MAX_REMAINING_LENGTH (16 MiB hard cap on a frame body, matching the
+# Rust/C++ implementations) lives in :mod:`rmtt.codec.constants` and is
+# re-exported here for backwards compatibility.
 
 _PACKET_TYPES = {
     CONNACK: ConnackPacket,
@@ -105,11 +114,11 @@ class Decoder:
         if parsed is None:
             return None
         message_type, body_offset, remaining = parsed
+        if remaining > MAX_REMAINING_LENGTH:
+            raise ProtocolViolationError(f"frame body too large: {remaining} bytes")
         end = body_offset + remaining
         if len(self._buf) < end:
             return None
-        if remaining > MAX_REMAINING_LENGTH:
-            raise ProtocolViolationError(f"frame body too large: {remaining} bytes")
         body = bytes(self._buf[body_offset:end])
         del self._buf[:end]
         first = message_type << 4

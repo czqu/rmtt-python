@@ -60,6 +60,17 @@ class AsyncClient:
         self._stopping = False
         self._backoff = Backoff(self.options.reconnect_jitter)
         self._disconnect_reason: Optional[int] = None
+        # Bumped by disconnect()/shutdown() so an in-flight connect() can tell
+        # it has been superseded and must not install its session.
+        self._epoch = 0
+        # Set by disconnect()/shutdown(); the in-flight connect() races its
+        # internal waits against this event and aborts promptly.
+        self._abort = asyncio.Event()
+        # Tracks in-flight connect() calls so shutdown() can wait for their
+        # tokens to complete before the event loop goes away.
+        self._connects_in_flight = 0
+        self._connect_idle = asyncio.Event()
+        self._connect_idle.set()
 
     # ------------------------------------------------------------------ state
     @property
@@ -98,28 +109,78 @@ class AsyncClient:
         self._stopping = False
         self._disconnect_reason = None
         self._state = ConnectionState.CONNECTING
+        # Fresh abort event per attempt: disconnect()/shutdown() set the current
+        # one, so a superseded connect() keeps observing its own abort signal.
+        self._abort = asyncio.Event()
+        abort = self._abort
+        epoch = self._epoch
+        self._connects_in_flight += 1
+        self._connect_idle.clear()
         try:
-            transport, connack = await self._connect_with_retry()
-            token.return_code = connack.return_code
-            self._start_session(transport, connack)
-            token._complete()
-        except BaseException as exc:  # noqa: BLE001 - surfaced through the token
-            self._state = ConnectionState.DISCONNECTED
-            token._complete(exc)
-        return token
-
-    async def _connect_with_retry(self) -> tuple[Transport, ConnackPacket]:
-        while True:
             try:
-                return await self._connect_once()
+                transport, connack = await self._connect_with_retry(abort)
+                if self._stopping or abort.is_set() or epoch != self._epoch:
+                    # disconnect()/shutdown() won the race while the handshake
+                    # was in flight; drop the fresh transport instead of going
+                    # live.
+                    await _close_quietly(transport)
+                    if epoch == self._epoch:
+                        self._state = ConnectionState.DISCONNECTED
+                    token._complete(ClientStateError("connection attempt aborted"))
+                    return token
+                token.return_code = connack.return_code
+                self._start_session(transport, connack)
+                token._complete()
+            except asyncio.CancelledError:
+                if epoch == self._epoch:
+                    self._state = ConnectionState.DISCONNECTED
+                raise
+            except Exception as exc:  # surfaced through the token
+                if epoch == self._epoch:
+                    self._state = ConnectionState.DISCONNECTED
+                token._complete(exc)
+            return token
+        finally:
+            self._connects_in_flight -= 1
+            if self._connects_in_flight == 0:
+                self._connect_idle.set()
+
+    async def _connect_with_retry(
+        self, abort: asyncio.Event
+    ) -> tuple[Transport, ConnackPacket]:
+        while True:
+            if abort.is_set() or self._stopping:
+                raise ClientStateError("connection attempt aborted")
+            attempt = asyncio.ensure_future(self._connect_once())
+            aborter = asyncio.ensure_future(abort.wait())
+            try:
+                await asyncio.wait({attempt, aborter}, return_when=asyncio.FIRST_COMPLETED)
+            except BaseException:
+                attempt.cancel()
+                aborter.cancel()
+                raise
+            aborter.cancel()
+            if not attempt.done():
+                # Aborted mid-attempt: let the attempt clean up its transport.
+                attempt.cancel()
+                await asyncio.gather(attempt, return_exceptions=True)
+                raise ClientStateError("connection attempt aborted")
+            try:
+                return attempt.result()
             except ConnRefusedError:
                 raise
             except asyncio.CancelledError:
                 raise
             except Exception:
-                if not self.options.connect_retry or self._stopping:
+                if not self.options.connect_retry or self._stopping or abort.is_set():
                     raise
-                await asyncio.sleep(self.options.connect_retry_interval)
+                try:
+                    # Interruptible backoff: disconnect()/shutdown() wakes this
+                    # immediately instead of waiting out the retry interval.
+                    await asyncio.wait_for(abort.wait(), self.options.connect_retry_interval)
+                except asyncio.TimeoutError:
+                    continue
+                raise ClientStateError("connection attempt aborted")
 
     async def _connect_once(self) -> tuple[Transport, ConnackPacket]:
         servers = self.options.servers
@@ -145,6 +206,9 @@ class AsyncClient:
                     raise ConnRefusedError(connack.return_code)
                 return transport, connack
             except ConnRefusedError:
+                await _close_quietly(transport)
+                raise
+            except asyncio.CancelledError:
                 await _close_quietly(transport)
                 raise
             except Exception as exc:  # try the next server
@@ -177,7 +241,9 @@ class AsyncClient:
         self._last_sent = now
         self._last_received = now
         self._reader_task = asyncio.create_task(self._reader_loop())
-        if self.options.heartbeat > 0 or self.options.adaptive_heartbeat:
+        # The server owns the final heartbeat: 0 means "disabled", any other
+        # negotiated value is honoured even when the client asked for none.
+        if self._server_keepalive > 0 or self.options.adaptive_heartbeat:
             self._keepalive_task = asyncio.create_task(self._keepalive_loop())
 
     # ------------------------------------------------------------------ send
@@ -200,7 +266,9 @@ class AsyncClient:
             timeout = self.options.write_timeout or 30.0
             await asyncio.wait_for(self._send(PushPacket(payload=data)), timeout)
             token._complete()
-        except BaseException as exc:  # noqa: BLE001
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
             token._complete(exc)
         return token
 
@@ -236,11 +304,12 @@ class AsyncClient:
     async def _dispatch(self, message: Message) -> None:
         # Like the Go client, every handler is dispatched independently so a
         # slow callback cannot stall reads or heartbeats.
+        loop = asyncio.get_running_loop()
         for handler in list(self._handlers):
             if inspect.iscoroutinefunction(handler):
                 asyncio.create_task(handler(message))
             else:
-                asyncio.get_running_loop().run_in_executor(None, _call_sync_handler, handler, message)
+                loop.run_in_executor(None, _call_sync_handler, handler, message, loop)
 
     def _on_link_down(self, error: Optional[BaseException]) -> None:
         if self._state is not ConnectionState.CONNECTED:
@@ -257,13 +326,16 @@ class AsyncClient:
             self._state = ConnectionState.DISCONNECTED
 
     async def _reconnect_loop(self) -> None:
+        # Consume the disconnect reason once: re-reading it on every retry would
+        # re-trigger the KEEPALIVE_TIMEOUT backoff reset and spin the loop.
+        reason = self._disconnect_reason
+        self._disconnect_reason = None
+        if reason is not None and reason in _NO_RECONNECT_REASONS:
+            self._state = ConnectionState.DISCONNECTED
+            return
+        if reason == Disc.KEEPALIVE_TIMEOUT:
+            self._backoff.reset("reconnect")
         while not self._stopping:
-            reason = self._disconnect_reason
-            if reason is not None and reason in _NO_RECONNECT_REASONS:
-                self._state = ConnectionState.DISCONNECTED
-                return
-            if reason == Disc.KEEPALIVE_TIMEOUT:
-                self._backoff.reset("reconnect")
             sleep = self._backoff.next_sleep(
                 "reconnect",
                 self.options.reconnect_base,
@@ -296,13 +368,15 @@ class AsyncClient:
             return
         try:
             while True:
-                heartbeat = self._server_keepalive or self.options.heartbeat
+                # Negotiated keepalive is authoritative; 0 disables heartbeats
+                # entirely (the same rule _adaptive_keepalive applies).
+                heartbeat = self._server_keepalive
                 if heartbeat <= 0:
                     return
                 await asyncio.sleep(max(heartbeat / 4.0, 1.0))
-                heartbeat = self._server_keepalive or self.options.heartbeat
+                heartbeat = self._server_keepalive
                 if heartbeat <= 0:
-                    continue
+                    return
                 now = time.monotonic()
                 if now - self._last_sent >= heartbeat:
                     await self._send(PingreqPacket())
@@ -413,7 +487,10 @@ class AsyncClient:
         if self._state is ConnectionState.DISCONNECTED:
             return
         self._stopping = True
+        self._epoch += 1
+        self._abort.set()
         self._state = ConnectionState.DISCONNECTING
+        await self._await_connect_abort()
         self._cancel_task(self._reconnect_task)
         self._reconnect_task = None
         try:
@@ -430,6 +507,9 @@ class AsyncClient:
     async def shutdown(self) -> None:
         """Alias for :meth:`disconnect` without sending a frame (used on exit)."""
         self._stopping = True
+        self._epoch += 1
+        self._abort.set()
+        await self._await_connect_abort()
         self._cancel_task(self._reconnect_task)
         self._cancel_task(self._reader_task)
         self._cancel_task(self._keepalive_task)
@@ -438,6 +518,16 @@ class AsyncClient:
         self._state = ConnectionState.DISCONNECTED
 
     # ----------------------------------------------------------------- helpers
+    async def _await_connect_abort(self) -> None:
+        """Give an in-flight connect() a bounded chance to abort and complete
+        its token before the caller tears the client down."""
+        if self._connects_in_flight == 0:
+            return
+        try:
+            await asyncio.wait_for(self._connect_idle.wait(), 1.0)
+        except asyncio.TimeoutError:
+            pass
+
     @staticmethod
     def _cancel_task(task: Optional[asyncio.Task]) -> None:
         if task is not None and not task.done():
@@ -480,7 +570,11 @@ class Client:
         self._loop.run_forever()
 
     def _submit(self, coro) -> None:
-        asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            asyncio.run_coroutine_threadsafe(coro, self._loop)
+        except RuntimeError:
+            coro.close()
+            raise
 
     @property
     def state(self) -> ConnectionState:
@@ -504,7 +598,10 @@ class Client:
             token.return_code = inner.return_code
             token._complete(inner.error)
 
-        self._submit(_do())
+        try:
+            self._submit(_do())
+        except RuntimeError as exc:  # loop stopped (e.g. after shutdown())
+            token._complete(exc)
         return token
 
     def push(self, payload: Any) -> Token:
@@ -514,7 +611,10 @@ class Client:
             inner = await self._async.push(payload)
             token._complete(inner.error)
 
-        self._submit(_do())
+        try:
+            self._submit(_do())
+        except RuntimeError as exc:  # loop stopped (e.g. after shutdown())
+            token._complete(exc)
         return token
 
     def disconnect(self, quiesce: float = 1.0) -> None:
@@ -561,8 +661,16 @@ async def _close_quietly(transport: Optional[Transport]) -> None:
         pass
 
 
-def _call_sync_handler(handler, message: Message) -> None:
+def _call_sync_handler(handler, message: Message, loop: asyncio.AbstractEventLoop) -> None:
     try:
-        handler(message)
+        result = handler(message)
     except Exception:  # noqa: BLE001 - a handler bug must not kill the link
-        pass
+        return
+    # A non-coroutine-function callable may still return an awaitable
+    # (e.g. an object with ``async __call__``); run it on the event loop
+    # instead of silently dropping it.
+    if inspect.isawaitable(result):
+        try:
+            loop.call_soon_threadsafe(asyncio.ensure_future, result)
+        except RuntimeError:  # loop already closed
+            pass
