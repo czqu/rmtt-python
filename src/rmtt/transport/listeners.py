@@ -181,8 +181,9 @@ class QUICListener(Listener):
         self.certfile = certfile
         self.keyfile = keyfile
         # "rmtt" is the ALPN every implementation that negotiates one expects
-        # (netty QUIC rejects the handshake without it); servers that ignore
-        # ALPN (Go, Python's own client) are unaffected.
+        # (netty QUIC rejects the handshake without it). The Python client
+        # dials with "rmtt" first and falls back to no ALPN offer for servers
+        # like rmtt-go that negotiate none.
         self.alpn = alpn or [DEFAULT_QUIC_ALPN]
         self.idle_timeout = idle_timeout
         self._server: Any = None

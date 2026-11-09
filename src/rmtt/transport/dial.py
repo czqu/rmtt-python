@@ -117,14 +117,33 @@ async def _dial_quic(
     insecure: bool,
     timeout: float,
 ) -> Transport:
+    if alpn is not None:
+        return await _open_quic(host, port, alpn, ca_file, insecure, timeout)
+    # Default path: offer the standard ALPN first (rmtt-java / rmtt-python
+    # servers require one), then fall back to offering none — rmtt-go's QUIC
+    # listener negotiates no ALPN and some quic-go/Go toolchain stacks abort
+    # the handshake on an offer they cannot match. Only a rejected handshake
+    # triggers the retry; an unresponsive peer keeps the single timeout.
+    try:
+        return await _open_quic(host, port, [DEFAULT_QUIC_ALPN], ca_file, insecure, timeout)
+    except asyncio.TimeoutError:
+        raise
+    except Exception:
+        return await _open_quic(host, port, None, ca_file, insecure, timeout)
+
+
+async def _open_quic(
+    host: str,
+    port: int,
+    alpn: Optional[list[str]],
+    ca_file: Optional[str],
+    insecure: bool,
+    timeout: float,
+) -> Transport:
     from aioquic.asyncio.client import connect
     from aioquic.quic.configuration import QuicConfiguration
 
-    # Offer the standard ALPN by default, mirroring the WebSocket dial's
-    # default "rmtt" subprotocol; servers that ignore ALPN are unaffected.
-    configuration = QuicConfiguration(
-        is_client=True, alpn_protocols=alpn or [DEFAULT_QUIC_ALPN]
-    )
+    configuration = QuicConfiguration(is_client=True, alpn_protocols=alpn)
     if insecure:
         configuration.verify_mode = ssl.CERT_NONE
     elif ca_file:

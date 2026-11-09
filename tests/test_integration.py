@@ -688,3 +688,51 @@ async def test_ws_path_ignores_query_string():
         await ws.close()
     finally:
         await server.close()
+
+
+async def test_quic_dial_falls_back_to_no_alpn_offer(monkeypatch):
+    from rmtt.transport import dial as dial_mod
+
+    calls = []
+
+    async def fake_open(host, port, alpn, ca_file, insecure, timeout):
+        calls.append(alpn)
+        if alpn is not None:
+            # rmtt-go-like server: aborts on an ALPN offer it cannot match.
+            raise ConnectionError("No common ALPN protocols")
+        return "transport"
+
+    monkeypatch.setattr(dial_mod, "_open_quic", fake_open)
+    result = await dial_mod.dial("quic://127.0.0.1:1")
+    assert result == "transport"
+    assert calls == [[dial_mod.DEFAULT_QUIC_ALPN], None]
+
+
+async def test_quic_dial_explicit_alpn_skips_fallback(monkeypatch):
+    from rmtt.transport import dial as dial_mod
+
+    calls = []
+
+    async def fake_open(host, port, alpn, ca_file, insecure, timeout):
+        calls.append(alpn)
+        raise ConnectionError("boom")
+
+    monkeypatch.setattr(dial_mod, "_open_quic", fake_open)
+    with pytest.raises(ConnectionError):
+        await dial_mod.dial("quic://127.0.0.1:1", quic_alpn=["other"])
+    assert calls == [["other"]]
+
+
+async def test_quic_dial_timeout_does_not_retry(monkeypatch):
+    from rmtt.transport import dial as dial_mod
+
+    calls = []
+
+    async def fake_open(host, port, alpn, ca_file, insecure, timeout):
+        calls.append(alpn)
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(dial_mod, "_open_quic", fake_open)
+    with pytest.raises(asyncio.TimeoutError):
+        await dial_mod.dial("quic://127.0.0.1:1")
+    assert calls == [[dial_mod.DEFAULT_QUIC_ALPN]]
